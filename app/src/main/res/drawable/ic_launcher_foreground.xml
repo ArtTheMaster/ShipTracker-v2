@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Delivery Package Isometric Box -->
+    <!-- Top Face -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,28 L78,41 L54,53 L30,41 Z" />
+    <!-- Left Face -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M30,42 L53,54 L53,78 L30,66 Z" />
+    <!-- Right Face -->
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M55,54 L78,42 L78,66 L55,78 Z" />
+    <!-- Packing Tape accent -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M50,30 L58,34 L58,76 L50,72 Z" />
+    <!-- Delivery Speed Swoosh / Checkmark Badge -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M64,62 A 14,14 0 1,0 78,76 A 14,14 0 1,0 64,62 Z" />
+    <!-- Checkmark inside Badge -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,69 L73,72 L80,65 L82,67 L73,76 L68,71 Z" />
+</vector>

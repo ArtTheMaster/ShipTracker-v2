@@ -1,0 +1,6 @@
+{
+  "name": "GJandAsher ShipTracker",
+  "description": "A Mobile Outbound Logistics, Analytics, and Returns Manager for Shopee, Lazada, and TikTok Shop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

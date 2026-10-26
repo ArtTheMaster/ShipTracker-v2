@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../domain/support_chat_model.dart';
 
 class SupportChatRepository {
@@ -8,11 +10,9 @@ class SupportChatRepository {
     return _firestore
         .collection('support_chats')
         .where('customerUid', isEqualTo: uid)
-        // FIXED: Removed the .orderBy query to bypass the Firestore Index requirement
         .snapshots()
         .map((snap) {
           final threads = snap.docs.map((doc) => SupportChatThread.fromFirestore(doc)).toList();
-          // Sort descending in-memory instead
           threads.sort((a, b) {
             final aTime = a.lastMessageAt;
             final bTime = b.lastMessageAt;
@@ -24,7 +24,6 @@ class SupportChatRepository {
   }
 
   Stream<List<SupportChatThread>> getAdminThreads() {
-    // Admin query uses only orderBy, so it does not trigger the index error
     return _firestore
         .collection('support_chats')
         .orderBy('lastMessageAt', descending: true)
@@ -37,7 +36,7 @@ class SupportChatRepository {
         .collection('support_chats')
         .doc(threadId)
         .collection('messages')
-        .orderBy('createdAt', descending: false) // Oldest top, newest bottom
+        .orderBy('createdAt', descending: false)
         .snapshots()
         .map((snap) => snap.docs.map((doc) => ChatMessageModel.fromFirestore(doc)).toList());
   }
@@ -75,7 +74,7 @@ class SupportChatRepository {
     final updateData = {
       'lastMessage': msg.imageUrl != null ? '[Image attached]' : msg.text,
       'lastMessageAt': FieldValue.serverTimestamp(),
-      'status': 'open', // New message reopens the thread automatically
+      'status': 'open',
     };
     
     if (isAdmin) {
@@ -86,6 +85,9 @@ class SupportChatRepository {
     
     batch.update(threadRef, updateData);
     await batch.commit();
+
+    // TRIGGER NOTIFICATIONS AFTER DB COMMIT
+    _triggerPushNotification(threadId, msg, isAdmin);
   }
 
   Future<void> markAsRead(String threadId, bool isAdmin) async {
@@ -95,5 +97,48 @@ class SupportChatRepository {
 
   Future<void> updateThreadStatus(String threadId, String status) async {
     await _firestore.collection('support_chats').doc(threadId).update({'status': status});
+  }
+
+  // --- INTERNAL HELPER FOR CLOUDFLARE WEBHOOK ---
+  Future<void> _triggerPushNotification(String threadId, ChatMessageModel msg, bool isAdmin) async {
+    try {
+      List<String> targetTokens = [];
+      String title = isAdmin ? 'Support Reply' : 'New Defect Report';
+      String body = msg.imageUrl != null ? '🖼️ [Image Attached]' : msg.text;
+
+      if (isAdmin) {
+        // Admin replying -> fetch the customer's token
+        final threadDoc = await _firestore.collection('support_chats').doc(threadId).get();
+        final customerUid = threadDoc.data()?['customerUid'];
+        if (customerUid != null) {
+          final userDoc = await _firestore.collection('users').doc(customerUid).get();
+          final token = userDoc.data()?['fcmToken'];
+          if (token != null) targetTokens.add(token as String);
+        }
+      } else {
+        // Customer sending -> fetch all admin/staff tokens
+        final adminQuery = await _firestore.collection('users')
+            .where('role', whereIn: ['admin', 'staff']).get();
+        for (var doc in adminQuery.docs) {
+          final token = doc.data()['fcmToken'];
+          if (token != null) targetTokens.add(token as String);
+        }
+      }
+
+      // Fire off webhook for each target token
+      for (var token in targetTokens) {
+        await http.post(
+          Uri.parse('https://shiptracker-fcm.artlorence-hveridiano.workers.dev/'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'token': token,
+            'title': title,
+            'body': body,
+          }),
+        );
+      }
+    } catch (e) {
+      print('Failed to send push notification: $e');
+    }
   }
 }

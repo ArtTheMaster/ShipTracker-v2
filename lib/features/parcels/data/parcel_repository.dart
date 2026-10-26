@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../../core/constants/app_constants.dart';
 import '../domain/parcel_model.dart';
 
@@ -20,7 +22,7 @@ class ParcelRepository {
             snapshot.docs.map((doc) => ParcelModel.fromFirestore(doc)).toList());
   }
 
-  // Real-time stream of a single parcel by ID (Fixes parcel_detail_screen.dart)
+  // Real-time stream of a single parcel by ID
   Stream<ParcelModel?> getParcelByIdStream(String id) {
     return _parcelsCol.doc(id).snapshots().map((doc) {
       if (!doc.exists) return null;
@@ -60,5 +62,44 @@ class ParcelRepository {
     }
 
     await _parcelsCol.doc(id).update(updateData);
+    
+    // TRIGGER NOTIFICATION AFTER SUCCESSFUL STATUS UPDATE
+    _triggerOrderStatusNotification(id, status);
+  }
+
+  // --- INTERNAL HELPER FOR CLOUDFLARE WEBHOOK ---
+  Future<void> _triggerOrderStatusNotification(String parcelId, String newStatus) async {
+    try {
+      // 1. Fetch the parcel to get customer ID and tracking number
+      final parcelDoc = await _parcelsCol.doc(parcelId).get();
+      if (!parcelDoc.exists) return;
+      
+      final data = parcelDoc.data() as Map<String, dynamic>?;
+      if (data == null) return;
+
+      final customerId = data['customerId'];
+      final trackingNumber = data['trackingNumber'] ?? 'Unknown';
+
+      if (customerId != null && customerId.toString().isNotEmpty) {
+        // 2. Fetch the customer's FCM token from the users collection
+        final userDoc = await _firestore.collection('users').doc(customerId).get();
+        final fcmToken = userDoc.data()?['fcmToken'] as String?;
+
+        if (fcmToken != null) {
+          // 3. Send the webhook
+          await http.post(
+            Uri.parse('https://shiptracker-fcm.artlorence-hveridiano.workers.dev/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'token': fcmToken,
+              'title': 'Order Status Update',
+              'body': 'Your parcel ($trackingNumber) is now $newStatus.',
+            }),
+          );
+        }
+      }
+    } catch (e) {
+      print('Failed to send order status push notification: $e');
+    }
   }
 }

@@ -5,7 +5,12 @@ import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 
 class ShipTrackerApp extends ConsumerWidget {
-  const ShipTrackerApp({super.key});
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  const ShipTrackerApp({
+    super.key,
+    required this.navigatorKey,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

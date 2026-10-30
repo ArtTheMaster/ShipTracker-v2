@@ -4,6 +4,9 @@
 *.pyc
 *.swp
 .DS_Store
+
+# Firebase CLI local state
+.firebase/
 .atom/
 .build/
 .buildlog/

@@ -50,6 +50,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return false;
     }
 
+    // Staff registrations must be approved by the owner/admin before they can
+    // access any portal. Rejected accounts are blocked permanently.
+    if (profile.isPending) {
+      await authRepo.signOut();
+      if (mounted) {
+        _showErrorSnackBar(
+          'Your staff account is still awaiting admin approval. '
+          'Please wait for the approval email before signing in.',
+        );
+      }
+      return false;
+    }
+
+    if (profile.isRejected) {
+      await authRepo.signOut();
+      if (mounted) {
+        _showErrorSnackBar(
+          'Your registration was rejected. Please contact the administrator.',
+        );
+      }
+      return false;
+    }
+
     final rawRole = profile.role.trim().toLowerCase();
     final isStaffOrAdmin = rawRole == 'admin' ||
         rawRole == 'staff' ||

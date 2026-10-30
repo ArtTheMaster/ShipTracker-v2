@@ -1,0 +1,17 @@
+name = "gjandasher-email"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Non-secret configuration. Replace the MAIL_FROM/REPLY_TO domain with the
+# domain you verify in Resend.
+[vars]
+FIREBASE_PROJECT_ID = "shiptracker-v2"
+APP_NAME = "GJandAsher Digital Printing"
+MAIL_FROM = "GJandAsher Digital Printing <notifications@YOUR_VERIFIED_DOMAIN>"
+REPLY_TO = "support@YOUR_VERIFIED_DOMAIN"
+
+# Secrets (set with `wrangler secret put NAME`):
+#   RESEND_API_KEY
+#   FIREBASE_CLIENT_EMAIL
+#   FIREBASE_PRIVATE_KEY
+#   API_KEY

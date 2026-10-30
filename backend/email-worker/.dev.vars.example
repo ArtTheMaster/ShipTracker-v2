@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local `wrangler dev` testing.
+# Never commit the real .dev.vars file.
+RESEND_API_KEY=re_your_resend_api_key
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@shiptracker-v2.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+API_KEY=replace-with-a-long-random-shared-key

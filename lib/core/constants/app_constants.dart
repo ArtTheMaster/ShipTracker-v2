@@ -4,6 +4,15 @@ class AppConstants {
   static const String appSubtitle = 'ShipTracker - Outbound & Returns';
   static const String logoAsset = 'assets/images/GJandAsher_logo.jpg';
 
+  // Account Status
+  static const String accountStatusActive = 'active';
+  static const String accountStatusPending = 'pending';
+  static const String accountStatusRejected = 'rejected';
+
+  // Staff registration messaging
+  static const String staffApprovalPendingMessage =
+      'Admin will be reviewing this account, please stand-by and wait for the approval of this registration.';
+
   // Cloudinary Configuration
   static const String cloudinaryCloudName = 'zxatyaly';
   static const String cloudinaryUploadPreset = 'shiptracker_returns';

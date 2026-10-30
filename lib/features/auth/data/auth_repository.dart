@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/email_service.dart';
 import '../domain/user_profile_model.dart';
 import '../../qr_customers/domain/customer_model.dart'; // Added import for customer synchronization
 
@@ -59,6 +60,7 @@ class AuthRepository {
   Future<UserCredential?> signUpWithGoogle({
     required String role,
     String? fullName,
+    String? phoneNumber,
   }) async {
     final userCredential = await signInWithGoogle();
     final user = userCredential?.user;
@@ -80,6 +82,7 @@ class AuthRepository {
       user,
       role,
       fullName: fullName ?? user.displayName,
+      phoneNumber: phoneNumber,
     );
 
     return userCredential;
@@ -90,13 +93,23 @@ class AuthRepository {
     User user,
     String role, {
     String? fullName,
+    String? phoneNumber,
   }) async {
     final displayName = fullName ?? user.displayName ?? '';
+    final assignedRole = role.trim().isEmpty
+        ? AppConstants.roleCustomer
+        : role.trim().toLowerCase();
+    final isStaffRole = assignedRole == AppConstants.roleStaff;
+
     final profile = UserProfileModel(
       uid: user.uid,
       email: user.email ?? '',
       fullName: displayName,
-      role: role,
+      role: assignedRole,
+      status: isStaffRole
+          ? AppConstants.accountStatusPending
+          : AppConstants.accountStatusActive,
+      phoneNumber: (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -107,10 +120,10 @@ class AuthRepository {
         .set(profile.toMap());
 
     // Sync to Customer Registry & QR system if role is customer
-    if (role.toLowerCase() == 'customer') {
+    if (assignedRole == AppConstants.roleCustomer) {
       final newCustomer = CustomerModel(
         name: displayName.isNotEmpty ? displayName : 'Customer',
-        contactNumber: '',
+        contactNumber: profile.phoneNumber ?? '',
         address: '',
         type: 'regular',
         linkedUid: user.uid,
@@ -160,6 +173,7 @@ class AuthRepository {
     String? username,
     String? fullName,
     String? role,
+    String? phoneNumber,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
@@ -169,13 +183,22 @@ class AuthRepository {
     final user = credential.user;
     if (user != null) {
       final displayName = fullName ?? username ?? '';
-      final assignedRole = role ?? 'customer';
+      final rawRole = role?.trim() ?? '';
+      final assignedRole =
+          rawRole.isEmpty ? AppConstants.roleCustomer : rawRole.toLowerCase();
+      final isStaffRole = assignedRole == AppConstants.roleStaff;
+      final normalizedPhone =
+          (phoneNumber ?? '').trim().isEmpty ? null : phoneNumber!.trim();
 
       final profile = UserProfileModel(
         uid: user.uid,
         email: user.email ?? email.trim(),
         fullName: displayName,
         role: assignedRole,
+        status: isStaffRole
+            ? AppConstants.accountStatusPending
+            : AppConstants.accountStatusActive,
+        phoneNumber: normalizedPhone,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -190,10 +213,10 @@ class AuthRepository {
       }
 
       // Sync to Customer Registry & QR system if role is customer
-      if (assignedRole.toLowerCase() == 'customer') {
+      if (assignedRole == AppConstants.roleCustomer) {
         final newCustomer = CustomerModel(
           name: displayName.isNotEmpty ? displayName : 'Customer',
-          contactNumber: '',
+          contactNumber: normalizedPhone ?? '',
           address: '',
           type: 'regular',
           linkedUid: user.uid,
@@ -209,9 +232,23 @@ class AuthRepository {
     return credential;
   }
 
-  // Password reset
+  // Password reset. When the branded email worker is configured we send a
+  // custom reset link from the verified domain; otherwise we fall back to
+  // Firebase Auth's built-in reset email so the flow never breaks.
   Future<void> sendPasswordReset(String email) async {
-    await _auth.sendPasswordResetEmail(email: email.trim());
+    final trimmed = email.trim();
+    final emailService = EmailService();
+
+    if (emailService.isConfigured) {
+      try {
+        await emailService.sendPasswordReset(email: trimmed);
+        return;
+      } catch (_) {
+        // Fall through to Firebase Auth's reset email.
+      }
+    }
+
+    await _auth.sendPasswordResetEmail(email: trimmed);
   }
 
   // Quick helper to ensure or switch role for testing

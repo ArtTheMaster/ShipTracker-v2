@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import 'auth_providers.dart';
@@ -73,8 +74,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             password: _passwordCtrl.text,
             fullName: _nameCtrl.text.trim(),
             role: _selectedRole,
+            phoneNumber: _phoneCtrl.text.trim(),
           );
-      // Router automatically redirects upon successful auth state change
+
+      if (_selectedRole == AppConstants.roleStaff) {
+        await _finishStaffRegistration();
+      }
+      // Customer accounts are redirected by the router after auth succeeds.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,8 +110,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       await ref.read(authRepositoryProvider).signUpWithGoogle(
             role: _selectedRole,
             fullName: name.isEmpty ? null : name,
+            phoneNumber: _phoneCtrl.text.trim(),
           );
-      // Router automatically redirects upon successful auth state change
+
+      if (_selectedRole == AppConstants.roleStaff) {
+        await _finishStaffRegistration();
+      }
+      // Customer accounts are redirected by the router after auth succeeds.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -121,6 +132,84 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       ref.read(authFlowInProgressProvider.notifier).state = false;
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Staff accounts are created in a pending state. Sign them out immediately
+  /// so they cannot reach the Staff Portal until an admin approves them, then
+  /// show the review notice and return to the login screen.
+  Future<void> _finishStaffRegistration() async {
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+    } catch (_) {
+      // The router also blocks pending accounts, so a sign-out failure must
+      // not hide the approval notice from the new staff member.
+    }
+
+    if (!mounted) return;
+    await _showStaffPendingApprovalDialog();
+
+    if (mounted) {
+      context.go('/login');
+    }
+  }
+
+  Future<void> _showStaffPendingApprovalDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          icon: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.hourglass_top_rounded,
+              size: 36,
+              color: Color(0xFFB45309),
+            ),
+          ),
+          title: const Text(
+            'Registration Submitted',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            AppConstants.staffApprovalPendingMessage,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, height: 1.5),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'OK, I understand',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

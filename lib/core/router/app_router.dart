@@ -15,6 +15,7 @@ import '../../features/parcels/presentation/parcel_detail_screen.dart';
 import '../../features/dispatch/presentation/dispatch_screen.dart';
 import '../../features/returns/presentation/returns_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/admin/presentation/staff_approval_screen.dart';
 import '../../features/qr_customers/presentation/customer_list_screen.dart';
 import '../../features/qr_customers/presentation/reseller_scanner_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
@@ -40,7 +41,7 @@ class RouterRefreshNotifier extends ChangeNotifier {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = RouterRefreshNotifier(ref);
   ref.onDispose(refreshNotifier.dispose);
-  var signingOutMissingProfile = false;
+  var signingOutBlockedAccount = false;
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -78,13 +79,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Signed in but no Firestore profile: never treat this as a customer.
       // Sign the account out and send it back to the login screen.
       if (userProfile.value == null) {
-        if (!signingOutMissingProfile) {
-          signingOutMissingProfile = true;
+        if (!signingOutBlockedAccount) {
+          signingOutBlockedAccount = true;
           Future.microtask(() async {
             try {
               await ref.read(authRepositoryProvider).signOut();
             } finally {
-              signingOutMissingProfile = false;
+              signingOutBlockedAccount = false;
+            }
+          });
+        }
+        return '/login';
+      }
+
+      // Pending or rejected staff must never reach a portal, even if they
+      // still have a cached Firebase session from a previous version.
+      final status = userProfile.value!.status.trim().toLowerCase();
+      if (status == AppConstants.accountStatusPending ||
+          status == AppConstants.accountStatusRejected) {
+        if (!signingOutBlockedAccount) {
+          signingOutBlockedAccount = true;
+          Future.microtask(() async {
+            try {
+              await ref.read(authRepositoryProvider).signOut();
+            } finally {
+              signingOutBlockedAccount = false;
             }
           });
         }
@@ -95,6 +114,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isAdmin = rawRole == 'admin' || rawRole == AppConstants.roleAdmin.toLowerCase();
       final isStaff = rawRole == 'staff' || rawRole == AppConstants.roleStaff.toLowerCase();
       final isCustomer = !isAdmin && !isStaff;
+
+      // Staff registration approvals are owner/admin-only.
+      if (currentLoc.startsWith('/profile/staff-approvals') && !isAdmin) {
+        return '/parcels';
+      }
 
       if (isCustomer) {
         if (!currentLoc.startsWith('/customer')) {
@@ -230,6 +254,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     parentNavigatorKey: _rootNavigatorKey,
                     path: 'reseller-scanner',
                     builder: (context, state) => const ResellerScannerScreen(),
+                  ),
+                  // Admin/owner-only staff registration approvals.
+                  GoRoute(
+                    parentNavigatorKey: _rootNavigatorKey,
+                    path: 'staff-approvals',
+                    builder: (context, state) => const StaffApprovalScreen(),
                   ),
                   // NEW: Admin Support Inbox Route
                   GoRoute(

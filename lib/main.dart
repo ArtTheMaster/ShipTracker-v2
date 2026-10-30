@@ -37,12 +37,19 @@ void main() async {
 
   FirebaseAuth.instance.authStateChanges().listen((User? user) async {
     if (user != null) {
-      String? token = await messaging.getToken();
-      if (token != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-          {'fcmToken': token}, 
-          SetOptions(merge: true)
-        );
+      try {
+        final token = await messaging.getToken();
+        if (token != null) {
+          // Use update() so a token write can never create a profile document
+          // without a role/status. If the profile does not exist yet, the
+          // token is saved on the next sign-in.
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .update({'fcmToken': token});
+        }
+      } catch (_) {
+        // Profile not created yet or offline; safe to retry next launch.
       }
     }
   });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_avatar.dart';
+import '../../admin/presentation/staff_approval_providers.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -173,6 +174,8 @@ class ProfileScreen extends ConsumerWidget {
           }
 
           final roleColor = profile.isAdmin ? AppColors.shopeeOrange : AppColors.tealDark;
+          final pendingStaffCount =
+              profile.isAdmin ? ref.watch(pendingStaffCountProvider) : 0;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -282,6 +285,70 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
+
+              // Owner/Admin-only staff registration approvals
+              if (profile.isAdmin) ...[
+                const Text(
+                  'Administration',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navyMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceWhite,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.admin_panel_settings_rounded,
+                      color: AppColors.shopeeOrange,
+                    ),
+                    title: const Text(
+                      'Staff Registration Approvals',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      pendingStaffCount > 0
+                          ? '$pendingStaffCount registration'
+                              '${pendingStaffCount == 1 ? '' : 's'} awaiting review'
+                          : 'Review staff sign-ups before they can access the app',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (pendingStaffCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.shopeeOrange,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '$pendingStaffCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right_rounded),
+                      ],
+                    ),
+                    onTap: () => context.push('/profile/staff-approvals'),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // System & Legal Section
               const Text(

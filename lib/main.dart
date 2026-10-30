@@ -14,8 +14,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print("Handled background message: ${message.messageId}");
 }
 
-// Global navigator key for foreground snackbars
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Global scaffold messenger key for foreground snackbars
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,9 +50,9 @@ void main() async {
   // Register foreground handler
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     if (message.notification != null) {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessengerState? messenger = scaffoldMessengerKey.currentState;
+      if (messenger != null) {
+        messenger.showSnackBar(
           SnackBar(
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -73,7 +74,7 @@ void main() async {
 
   runApp(
     ProviderScope(
-      child: ShipTrackerApp(navigatorKey: navigatorKey), // Pass navigatorKey to app
+      child: ShipTrackerApp(scaffoldMessengerKey: scaffoldMessengerKey),
     ),
   );
 }

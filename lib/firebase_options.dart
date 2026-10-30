@@ -54,7 +54,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAEY0ixfYzlYELqrJ2gUljO2N5QhytkO34',
-    appId: '1:1051323344116:android:ab402b99c36a1ff04d6aa1',
+    appId: '1:1051323344116:android:2474a1ab8b812bf54d6aa1',
     messagingSenderId: '1051323344116',
     projectId: 'shiptracker-v2',
     storageBucket: 'shiptracker-v2.firebasestorage.app',

@@ -1,4 +1,4 @@
-package com.example.gjandasher_shiptracker
+package com.gjandasher.digitalprinting
 
 import io.flutter.embedding.android.FlutterActivity
 

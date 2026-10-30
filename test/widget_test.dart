@@ -1,21 +1,31 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:gjandasher_shiptracker/app.dart';
+import 'package:gjandasher_shiptracker/core/constants/app_constants.dart';
+import 'package:gjandasher_shiptracker/features/auth/presentation/auth_providers.dart';
 
 void main() {
   testWidgets('ShipTrackerApp loads smoke test', (WidgetTester tester) async {
-    // 1. Create a dummy navigator key for the test environment
-    final testNavigatorKey = GlobalKey<NavigatorState>();
+    // 1. Create a dummy messenger key for the test environment
+    final testMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
     await tester.pumpWidget(
-      // 2. Remove the 'const' keyword here
       ProviderScope(
+        // 2. Avoid touching Firebase in widget tests: simulate a signed-out user.
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream<User?>.value(null)),
+        ],
         // 3. Pass the test key to the app
-        child: ShipTrackerApp(navigatorKey: testNavigatorKey),
+        child: ShipTrackerApp(scaffoldMessengerKey: testMessengerKey),
       ),
     );
 
-    expect(find.text('GJandAsher ShipTracker'), findsOneWidget);
+    // Let the auth stream emit and the splash screen navigate to login.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(find.text(AppConstants.appName), findsOneWidget);
   });
 }

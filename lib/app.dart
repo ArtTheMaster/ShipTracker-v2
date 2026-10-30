@@ -5,11 +5,11 @@ import 'core/constants/app_constants.dart';
 import 'core/router/app_router.dart';
 
 class ShipTrackerApp extends ConsumerWidget {
-  final GlobalKey<NavigatorState> navigatorKey;
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey;
 
   const ShipTrackerApp({
     super.key,
-    required this.navigatorKey,
+    required this.scaffoldMessengerKey,
   });
 
   @override
@@ -18,6 +18,7 @@ class ShipTrackerApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: AppConstants.appName,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,

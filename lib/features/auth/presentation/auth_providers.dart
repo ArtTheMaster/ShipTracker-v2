@@ -7,6 +7,11 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
 });
 
+/// True while a manual sign-in/sign-up is being verified.
+/// The router waits for this to finish so it never redirects to a portal
+/// before the account's Firestore profile and role have been checked.
+final authFlowInProgressProvider = StateProvider<bool>((ref) => false);
+
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges;
 });

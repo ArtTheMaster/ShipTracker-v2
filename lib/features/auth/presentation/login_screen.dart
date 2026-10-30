@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_logo.dart';
 import 'auth_providers.dart';
-import 'signup_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -33,15 +33,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  /// Verifies that the user's assigned role matches the current login tab.
-  /// If mismatched, signs the user out immediately and displays an error message.
+  /// Verifies that the account has a Firestore profile and that its role
+  /// matches the current login tab. Any failure signs the user out.
   Future<bool> _verifyPortalRole(User user) async {
-    final userDoc = await FirebaseFirestore.instance
-        .collection(AppConstants.collectionUsers)
-        .doc(user.uid)
-        .get();
+    final authRepo = ref.read(authRepositoryProvider);
+    final profile = await authRepo.getUserProfile(user.uid);
 
-    final rawRole = (userDoc.data()?['role'] as String?)?.trim().toLowerCase() ?? 'customer';
+    if (profile == null) {
+      // The Google/Firebase account exists, but no app account was created.
+      await authRepo.signOut();
+      if (mounted) {
+        _showErrorSnackBar(
+          "Your account doesn't exist. Create an account first.",
+        );
+      }
+      return false;
+    }
+
+    final rawRole = profile.role.trim().toLowerCase();
     final isStaffOrAdmin = rawRole == 'admin' ||
         rawRole == 'staff' ||
         rawRole == AppConstants.roleAdmin.toLowerCase() ||
@@ -49,7 +58,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     if (!_isCustomerPortal && !isStaffOrAdmin) {
       // Trying to log into Staff Portal with a Customer account
-      await ref.read(authRepositoryProvider).signOut();
+      await authRepo.signOut();
       if (mounted) {
         _showErrorSnackBar(
           'This account is registered as a Customer. Please switch to the "Customer Portal" tab to sign in.',
@@ -60,7 +69,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     if (_isCustomerPortal && isStaffOrAdmin) {
       // Trying to log into Customer Portal with a Staff or Admin account
-      await ref.read(authRepositoryProvider).signOut();
+      await authRepo.signOut();
       if (mounted) {
         _showErrorSnackBar(
           'Staff and Admin accounts must sign in using the "Staff Portal" tab.',
@@ -77,6 +86,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
+    ref.read(authFlowInProgressProvider.notifier).state = true;
     setState(() => _isLoading = true);
 
     try {
@@ -159,6 +169,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showErrorSnackBar(message);
       }
     } finally {
+      ref.read(authFlowInProgressProvider.notifier).state = false;
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -177,12 +188,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // Handle Google Sign-In
   Future<void> _handleGoogleSignIn() async {
     FocusScope.of(context).unfocus();
+    ref.read(authFlowInProgressProvider.notifier).state = true;
     setState(() => _isGoogleLoading = true);
     try {
       final authRepo = ref.read(authRepositoryProvider);
-      final credential = await authRepo.signInWithGoogle(
-        defaultRole: _isCustomerPortal ? AppConstants.roleCustomer : AppConstants.roleStaff,
-      );
+      final credential = await authRepo.signInWithGoogle();
 
       final user = credential?.user;
       if (user != null) {
@@ -201,6 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     } finally {
+      ref.read(authFlowInProgressProvider.notifier).state = false;
       if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
@@ -217,12 +228,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   // Direct navigation to SignupScreen
   void _navigateToSignUp() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SignupScreen(),
-      ),
-    );
+    context.push('/signup');
   }
 
   @override

@@ -25,7 +25,9 @@ class AuthRepository {
   // ==========================================
   // SIGN IN WITH GOOGLE
   // ==========================================
-  Future<UserCredential?> signInWithGoogle({String? defaultRole}) async {
+  /// Authenticates with Google only. It never creates a Firestore profile:
+  /// accounts must be created through the Sign Up screen first.
+  Future<UserCredential?> signInWithGoogle() async {
     // FORCE ACCOUNT PICKER: Clear the cached Google session first
     await _googleSignIn.signOut();
     
@@ -46,54 +48,89 @@ class AuthRepository {
     );
 
     // 4. Sign in to Firebase
-    final UserCredential userCredential =
-        await _auth.signInWithCredential(credential);
+    return await _auth.signInWithCredential(credential);
+  }
 
-    final User? user = userCredential.user;
+  // ==========================================
+  // SIGN UP WITH GOOGLE
+  // ==========================================
+  /// Authenticates with Google and creates the Firestore profile for a new
+  /// account. Existing accounts are rejected so users sign in instead.
+  Future<UserCredential?> signUpWithGoogle({
+    required String role,
+    String? fullName,
+  }) async {
+    final userCredential = await signInWithGoogle();
+    final user = userCredential?.user;
+    if (user == null) return null;
 
-    // 5. If first time signing in, initialize profile in Firestore
-    if (user != null) {
-      final userDoc = await _firestore
-          .collection(AppConstants.collectionUsers)
-          .doc(user.uid)
-          .get();
+    final userDoc = await _firestore
+        .collection(AppConstants.collectionUsers)
+        .doc(user.uid)
+        .get();
 
-      if (!userDoc.exists) {
-        // Default new users to customer if defaultRole is customer or unspecified
-        final assignedRole = defaultRole ?? 'customer';
-        final profile = UserProfileModel(
-          uid: user.uid,
-          email: user.email ?? '',
-          fullName: user.displayName ?? '',
-          role: assignedRole,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        await _firestore
-            .collection(AppConstants.collectionUsers)
-            .doc(user.uid)
-            .set(profile.toMap());
-
-        // Sync to Customer Registry & QR system if role is customer
-        if (assignedRole.toLowerCase() == 'customer') {
-          final newCustomer = CustomerModel(
-            name: user.displayName?.isNotEmpty == true ? user.displayName! : 'Customer',
-            contactNumber: '',
-            address: '',
-            type: 'regular',
-            linkedUid: user.uid,
-            createdAt: DateTime.now(),
-          );
-
-          await _firestore
-              .collection('customers')
-              .add(newCustomer.toFirestore());
-        }
-      }
+    if (userDoc.exists) {
+      await signOut();
+      throw Exception(
+        'An account with this Google account already exists. Please sign in instead.',
+      );
     }
 
+    await _createUserProfile(
+      user,
+      role,
+      fullName: fullName ?? user.displayName,
+    );
+
     return userCredential;
+  }
+
+  /// Creates the Firestore profile and, for customers, the linked registry row.
+  Future<void> _createUserProfile(
+    User user,
+    String role, {
+    String? fullName,
+  }) async {
+    final displayName = fullName ?? user.displayName ?? '';
+    final profile = UserProfileModel(
+      uid: user.uid,
+      email: user.email ?? '',
+      fullName: displayName,
+      role: role,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await _firestore
+        .collection(AppConstants.collectionUsers)
+        .doc(user.uid)
+        .set(profile.toMap());
+
+    // Sync to Customer Registry & QR system if role is customer
+    if (role.toLowerCase() == 'customer') {
+      final newCustomer = CustomerModel(
+        name: displayName.isNotEmpty ? displayName : 'Customer',
+        contactNumber: '',
+        address: '',
+        type: 'regular',
+        linkedUid: user.uid,
+        createdAt: DateTime.now(),
+      );
+
+      await _firestore
+          .collection('customers')
+          .add(newCustomer.toFirestore());
+    }
+  }
+
+  /// Returns the Firestore profile for [uid], or null when no account exists.
+  Future<UserProfileModel?> getUserProfile(String uid) async {
+    final doc = await _firestore
+        .collection(AppConstants.collectionUsers)
+        .doc(uid)
+        .get();
+    if (!doc.exists || doc.data() == null) return null;
+    return UserProfileModel.fromMap(doc.data()!);
   }
 
   // Sign in using named parameters

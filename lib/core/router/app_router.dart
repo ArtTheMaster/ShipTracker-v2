@@ -33,12 +33,14 @@ class RouterRefreshNotifier extends ChangeNotifier {
   RouterRefreshNotifier(Ref ref) {
     ref.listen(authStateProvider, (_, __) => notifyListeners());
     ref.listen(userProfileProvider, (_, __) => notifyListeners());
+    ref.listen(authFlowInProgressProvider, (_, __) => notifyListeners());
   }
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = RouterRefreshNotifier(ref);
   ref.onDispose(refreshNotifier.dispose);
+  var signingOutMissingProfile = false;
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -46,6 +48,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
       final currentLoc = state.uri.path;
+
+      // Keep the login screen visible while credentials are being verified so
+      // the router cannot jump to a portal before the profile is checked.
+      if (ref.read(authFlowInProgressProvider)) {
+        return null;
+      }
 
       final authState = ref.read(authStateProvider);
       final userProfile = ref.read(userProfileProvider);
@@ -67,7 +75,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      final rawRole = userProfile.value?.role.trim().toLowerCase() ?? 'customer';
+      // Signed in but no Firestore profile: never treat this as a customer.
+      // Sign the account out and send it back to the login screen.
+      if (userProfile.value == null) {
+        if (!signingOutMissingProfile) {
+          signingOutMissingProfile = true;
+          Future.microtask(() async {
+            try {
+              await ref.read(authRepositoryProvider).signOut();
+            } finally {
+              signingOutMissingProfile = false;
+            }
+          });
+        }
+        return '/login';
+      }
+
+      final rawRole = userProfile.value!.role.trim().toLowerCase();
       final isAdmin = rawRole == 'admin' || rawRole == AppConstants.roleAdmin.toLowerCase();
       final isStaff = rawRole == 'staff' || rawRole == AppConstants.roleStaff.toLowerCase();
       final isCustomer = !isAdmin && !isStaff;

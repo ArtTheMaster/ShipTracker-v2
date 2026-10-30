@@ -28,6 +28,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   void dispose() {
+    // Never leave the router paused if the user backs out mid-request.
+    ref.read(authFlowInProgressProvider.notifier).state = false;
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
@@ -62,6 +64,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     if (!_formKey.currentState!.validate()) return;
 
+    ref.read(authFlowInProgressProvider.notifier).state = true;
     setState(() => _isLoading = true);
 
     try {
@@ -82,6 +85,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         );
       }
     } finally {
+      ref.read(authFlowInProgressProvider.notifier).state = false;
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -92,17 +96,29 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
 
+    ref.read(authFlowInProgressProvider.notifier).state = true;
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authRepositoryProvider).signInWithGoogle(defaultRole: _selectedRole);
+      final name = _nameCtrl.text.trim();
+      await ref.read(authRepositoryProvider).signUpWithGoogle(
+            role: _selectedRole,
+            fullName: name.isEmpty ? null : name,
+          );
+      // Router automatically redirects upon successful auth state change
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign-Up failed: $e'), backgroundColor: AppColors.errorRed),
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+            ),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
+      ref.read(authFlowInProgressProvider.notifier).state = false;
       if (mounted) setState(() => _isLoading = false);
     }
   }
